@@ -1,0 +1,114 @@
+/**
+ * 设计令牌（Design Tokens）
+ * 所有颜色/间距/圆角/阴影统一从这里取值，禁止在组件里写死色值。
+ * 深色主题通过在 html 上挂 .dark 类切换同一组变量，
+ * 并把关键令牌映射到 Element Plus 的 --el-* 变量，保证第三方组件同步换肤。
+ */
+:root {
+  /* 品牌色 */
+  --cc-primary: #0d9488;
+  --cc-primary-light: #14b8a6;
+  --cc-primary-dark: #0f766e;
+  --cc-success: #16a34a;
+  --cc-warning: #d97706;
+  --cc-danger: #dc2626;
+  --cc-info: #64748b;
+
+  /* 中性色 */
+  --cc-bg-page: #f6f8fb;
+  --cc-bg-card: #ffffff;
+  --cc-bg-soft: #f1f5f9;
+  --cc-text-primary: #0f172a;
+  --cc-text-regular: #334155;
+  --cc-text-secondary: #64748b;
+  --cc-text-placeholder: #94a3b8;
+  --cc-border: #e2e8f0;
+  --cc-divider: #eef2f7;
+
+  /* 侧栏（两种主题下保持深色固定）：墨绿-深青渐变 */
+  --cc-sidebar-bg-top: #042f2e;
+  --cc-sidebar-bg-bottom: #115e59;
+  --cc-sidebar-text: #9dc3bd;
+  --cc-sidebar-active: #ffffff;
+  --cc-sidebar-active-bg: rgba(20, 184, 166, 0.22);
+
+  /* Element Plus 主色同步（浅深主题共用同一映射表达式） */
+  --el-color-primary: var(--cc-primary);
+  --el-color-primary-light-3: color-mix(in srgb, var(--cc-primary) 70%, #fff);
+  --el-color-primary-light-5: color-mix(in srgb, var(--cc-primary) 50%, #fff);
+  --el-color-primary-light-7: color-mix(in srgb, var(--cc-primary) 30%, #fff);
+  --el-color-primary-light-8: color-mix(in srgb, var(--cc-primary) 20%, #fff);
+  --el-color-primary-light-9: color-mix(in srgb, var(--cc-primary) 10%, #fff);
+  --el-color-primary-dark-2: color-mix(in srgb, var(--cc-primary) 80%, #000);
+
+  /* 间距：8px 基准 */
+  --cc-space-1: 4px;
+  --cc-space-2: 8px;
+  --cc-space-3: 12px;
+  --cc-space-4: 16px;
+  --cc-space-6: 24px;
+  --cc-space-8: 32px;
+
+  /* 圆角 */
+  --cc-radius-sm: 6px;
+  --cc-radius-md: 10px;
+  --cc-radius-lg: 12px;
+  --cc-radius-xl: 16px;
+
+  /* 阴影（两级 elevation） */
+  --cc-shadow-card: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --cc-shadow-pop: 0 8px 24px rgba(15, 23, 42, 0.12);
+
+  /* 动效 */
+  --cc-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --cc-duration-fast: 120ms;
+  --cc-duration-base: 240ms;
+
+  /* 布局尺寸 */
+  --cc-header-h: 56px;
+  --cc-sidebar-w: 216px;
+  --cc-sidebar-w-collapsed: 64px;
+  --cc-content-max: 1280px;
+
+  color-scheme: light;
+}
+
+/* ============ 深色主题 ============ */
+html.dark {
+  --cc-primary: #2dd4bf;
+  --cc-primary-light: #5eead4;
+  --cc-primary-dark: #14b8a6;
+
+  --cc-bg-page: #0b1220;
+  --cc-bg-card: #151e31;
+  --cc-bg-soft: #1c2942;
+  --cc-text-primary: #e2e8f0;
+  --cc-text-regular: #cbd5e1;
+  --cc-text-secondary: #94a3b8;
+  --cc-text-placeholder: #64748b;
+  --cc-border: #273349;
+  --cc-divider: #233047;
+
+  --cc-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --cc-shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.5);
+
+  color-scheme: dark;
+
+  /* 同步 Element Plus 组件皮肤 */
+  --el-color-primary: var(--cc-primary);
+  --el-bg-color: var(--cc-bg-card);
+  --el-bg-color-page: var(--cc-bg-page);
+  --el-bg-color-overlay: var(--cc-bg-card);
+  --el-text-color-primary: var(--cc-text-primary);
+  --el-text-color-regular: var(--cc-text-regular);
+  --el-text-color-secondary: var(--cc-text-secondary);
+  --el-text-color-placeholder: var(--cc-text-placeholder);
+  --el-border-color: var(--cc-border);
+  --el-border-color-light: var(--cc-border);
+  --el-border-color-lighter: var(--cc-divider);
+  --el-border-color-extra-light: var(--cc-divider);
+  --el-fill-color-blank: var(--cc-bg-card);
+  --el-fill-color-light: var(--cc-bg-soft);
+  --el-fill-color-lighter: var(--cc-bg-soft);
+  --el-mask-color: rgba(11, 18, 32, 0.75);
+}
