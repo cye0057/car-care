@@ -1,0 +1,11 @@
+/* 车主端全局样式：与 PC 管理台同一品牌色（青绿），移动视口 */
+:root {
+  --cc-brand: #0d9488;
+  --cc-bg: #f6f8fb;
+}
+html, body, #app { height: 100%; margin: 0; background: var(--cc-bg); font-family: 'PingFang SC', 'HarmonyOS Sans SC', 'Microsoft YaHei', sans-serif; }
+.van-nav-bar { --van-nav-bar-background: var(--cc-brand); --van-nav-bar-title-text-color: #fff; --van-nav-bar-icon-color: #fff; --van-nav-bar-text-color: #fff; }
+.page { padding: 12px 12px 70px; }
+.price { color: #ee0a24; font-weight: 700; }
+.card-title { font-size: 15px; font-weight: 600; margin: 14px 4px 8px; color: #333; }
+.safe-bottom { padding-bottom: calc(70px + env(safe-area-inset-bottom)); }
