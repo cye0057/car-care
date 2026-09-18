@@ -1,0 +1,75 @@
+# 模板配置：复制本文件为 application.yml，填入你自己的密钥后运行。
+# 真实的 application.yml 不入库（见 .gitignore），避免泄露 OSS / 支付宝 / JWT 密钥。
+# 命令：cp application.yml.example application.yml
+server:
+  port: 8082
+
+spring:
+  application:
+    name: car-care-server
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/car_care?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: "<your-mysql-password>"
+  data:
+    redis:
+      host: localhost            # 本机或局域网 Redis 地址，按实际填
+      port: 6379
+      database: 10
+      timeout: 5s
+      lettuce:
+        pool:
+          max-active: 20
+          max-idle: 10
+  rabbitmq:
+    host: 127.0.0.1
+    port: 5672
+    username: guest              # 本机默认；RabbitMQ 管理台 :15672 同账号
+    password: guest
+    listener:
+      simple:
+        acknowledge-mode: manual   # 手动 ack：业务处理成功才确认，失败进重试/死信
+        prefetch: 10
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: auto
+    banner: false
+
+carcare:
+  jwt:
+    secret: "<change-me-to-a-random-string>"   # 务必改成你自己的随机串
+    expire-minutes: 720
+  alioss:
+    endpoint: oss-cn-beijing.aliyuncs.com      # 你 OSS 的 endpoint
+    access-key-id: "<your-oss-access-key-id>"
+    access-key-secret: "<your-oss-access-key-secret>"
+    bucket-name: "<your-oss-bucket>"
+  cache:
+    enabled: true          # 缓存总开关（JMeter 压测基线对比时置 false）
+    ttl-seconds: 60        # 基础过期时间
+    jitter-seconds: 30     # TTL 随机抖动上限（雪崩防护）
+    null-ttl-seconds: 120  # 空值缓存时间（穿透防护）
+  order:
+    close-ttl-ms: 1800000   # 延迟关单 TTL：支付全流程已接入，30 分钟避免「付款中订单被提前取消」
+  pay:
+    alipay:
+      gateway: https://openapi-sandbox.dl.alipaydev.com/gateway.do   # 沙箱网关
+      app-id: "<your-sandbox-app-id>"
+      private-key: "<your-app-private-key>"          # 应用私钥（不含 BEGIN/END 头的纯 base64）
+      alipay-public-key: "<your-alipay-public-key>"  # 支付宝公钥
+      notify-url: "http://<your-public-tunnel>/api/notify/alipay"  # 需公网可达（内网穿透映射 8082）
+  feed:
+    push-follower-threshold: 3000   # 粉丝数超此阈值的作者发帖不写扩散（拉模式）
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    com.carcare: debug
