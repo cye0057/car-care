@@ -128,7 +128,7 @@ D:/study_xue/JAVA_code/car-care/
   - `document/performance-report.md`：全链路压测报告，指标由 `*.jtl` 原始样本直接复算（非复述本文件）；含方法论说明、缓存三场景、秒杀前后对比、GEO/Feed 正确性验收、诚实的边界声明
   - `document/SUMMARY.md`：演进路径理由、7 个核心设计取舍（含被否决的替代方案）、6 类踩坑复盘、6 条简历条目、8 个面试问答预案
   - 数据复核（从 jtl 重算）：关缓存 5000 请求 9.84s/508 QPS，开缓存 4.91s/**1018 QPS**（吞吐 2.0x，总耗时减半）；均值 RT 1.2ms→1.7ms 微升是走 Redis 的合理代价，已在报告中标注；击穿 200 并发仅 2 次回源；秒杀 seckill-final 20 成功/seckill-run 13 成功（差 7 正对应库存初始化 bug）
-  - 补充统计：后端 91 类/4522 行，前端 2308 行，14 表，依赖 MyBatis-Plus 3.5.12 / Hutool 5.8.40 / JJWT 0.12.6 / springdoc 2.8.9
+  - 补充统计（**截至阶段 6，不含阶段 7 的 OSS/支付/车辆档案**）：后端 91 类/4522 行，前端 2308 行，14 表，依赖 MyBatis-Plus 3.5.12 / Hutool 5.8.40 / JJWT 0.12.6 / springdoc 2.8.9
   - **文档交叉校验时又挖出一个同类 bug**：`Feed.vue` 用了 `van-avatar`，而 Vant 4.10.2 **同样没有这个组件**（与 van-banner 完全同型）。已改自定义 `.ava` 圆角 div 实现，构建通过
   - 组件核对判据修正：先前只 `ls node_modules/vant/es` 肉眼比对，漏看了 avatar 不在列表里（当时误报"banner 是唯一不存在的"，实为 19 种里有 2 种缺失）。单判据也会误报——`van-form`/`van-date-picker` 目录与导出都在但渲染类名不叫 `.van-form`，CSS 判据会误判缺失。最终用「目录存在 + `es/index.mjs` 导出」双判据
   - 说明与后续更正：本轮最初判断「所有中间件均停机」有误——
