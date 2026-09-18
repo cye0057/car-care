@@ -20,6 +20,9 @@
           <van-button size="small" round @click.stop="cancel(o)">取消</van-button>
           <van-button size="small" round type="primary" color="#0d9488" @click.stop="pay(o)">去支付</van-button>
         </div>
+        <div class="acts" v-else-if="o.status === 4">
+          <van-button size="small" round type="primary" color="#0d9488" @click.stop="review(o)">去评价</van-button>
+        </div>
       </div>
     </div>
   </div>
@@ -27,10 +30,12 @@
 
 <script setup>
 import { onActivated, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
 import { myOrdersApi, payOrderApi } from '../api'
 import http from '../api/http'
 
+const router = useRouter()
 const orders = ref([])
 
 const statusText = (s) => ({ 1: '待支付', 2: '已支付', 3: '施工中', 4: '已完工', 5: '已取消', 6: '已评价' }[s] || s)
@@ -50,6 +55,14 @@ async function pay(o) {
   window.open(res.data, '_blank')
   showToast('请在打开的页面完成支付')
   load()
+}
+
+/** 完工订单可评价：把门店信息一并带过去，发布页锁定 orderId 并只读展示门店 */
+function review(o) {
+  router.push({
+    path: '/publish',
+    query: { orderId: o.id, orderNo: o.orderNo, storeId: o.storeId, storeName: o.storeName }
+  })
 }
 
 async function cancel(o) {

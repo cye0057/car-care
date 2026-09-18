@@ -26,7 +26,7 @@
       <el-table-column prop="remark" label="备注" minwidth="140" show-overflow-tooltip />
       <el-table-column label="操作" width="220" fixed="right">
         <template #default="{ row }">
-          <el-button v-if="row.status === 1" link type="primary" @click="onStatus(row, 3)">开始施工</el-button>
+          <!-- 状态机只允许 2→3 进入施工；待支付(1)必须先经支付回调到 2，故 1 只有取消 -->
           <el-button v-if="row.status === 1" link type="danger" @click="onCancel(row)">取消</el-button>
           <el-button v-if="row.status === 2" link type="primary" @click="onStatus(row, 3)">开始施工</el-button>
           <el-button v-if="row.status === 3" link type="success" @click="onStatus(row, 4)">完工</el-button>

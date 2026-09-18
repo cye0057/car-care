@@ -186,6 +186,19 @@ ZSet 上按 offset 取是 O(N) 偏移，越往后越慢；而且范围边界处�
 
 **加分点**：主动讲自己踩过分页边界坑，且能说出根因。分页边界（包含/排除）不定义清楚必然出问题。
 
+**追问：评价和订单怎么关联的？**
+评价表有 `order_id` 字段，从订单页进入评价时携带。服务端三重校验：订单必须属于当前登录人（`order.userId == BaseContext.getUserId()`）、订单门店与评价门店一致、订单状态必须是已完工(4)。校验通过后写回 `order_id`，并调用订单状态机把订单推进到已评价(6)——**状态流转复用已有的 `TRANSITIONS` 表**，不绕过状态机直接 update，避免出现非法状态的订单。
+
+**追问：门店评分怎么来的？**
+不是管理员手填，而是发布评价后按该店全部有效评价聚合重算：`SELECT ROUND(AVG(score),1) FROM t_review WHERE store_id=? AND deleted=0`，回写 `t_store.score`。这里有两个坑：
+1. **手写 SQL 不会被 `@TableLogic` 自动追加 `deleted` 条件**，必须显式写 `deleted = 0`，否则已删除的评价仍然参与均分
+2. 门店详情走的是**逻辑过期缓存**（阶段1），改完评分必须双删缓存，否则首页还显示旧分数
+
+**追问：评价接口有没有做参数校验？**
+之前直接 `@RequestBody Review` 绑定实体，等于把 `score`、`orderId`、`userId` 全交给客户端——可以传 99 分，也可以伪造 `orderId` 给别人的订单评价。改成 `ReviewPublishDTO` + `@Valid`：`score` 加 `@Min(1) @Max(5)`，`content` 加 `@NotBlank @Size(max=1000)`，`userId` 只从 token 取、永不信客户端。
+
+**加分点**：能说出「为什么不能让前端传 userId」，以及「手写 SQL 会绕过逻辑删除」这种框架细节。
+
 ---
 
 ## 八、GEO 附近门店

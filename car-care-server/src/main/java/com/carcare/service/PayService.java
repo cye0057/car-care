@@ -15,6 +15,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -72,15 +73,23 @@ public class PayService {
 
     /**
      * 支付宝异步回调：验签通过且支付成功则幂等置订单为已支付。
-     * 返回纯文本 "success"/"failure"，success 后支付宝不再重试
+     * 返回纯文本 "success"/"failure"，success 后支付宝不再重试。
+     * <p>
+     * 日志分级：缺 sign / 验签不通过属于「请求本身不合法」，是预期内的拒绝
+     * （扫描器探测、手工 curl 都会命中），只打一行 WARN，不输出堆栈；
+     * 只有验签通过后的业务异常才按 ERROR 记录，保证真实故障不被噪声淹没
      */
     public String handleNotify(HttpServletRequest request) {
         Map<String, String> params = request.getParameterMap().entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue()[0]));
+        if (!StringUtils.hasText(params.get("sign"))) {
+            log.warn("支付宝回调缺少签名，已拒绝 out_trade_no={}, 参数={}", params.get("out_trade_no"), params.keySet());
+            return "failure";
+        }
         try {
             boolean valid = AlipaySignature.rsaCheckV1(params, props.getAlipayPublicKey(), "UTF-8", "RSA2");
             if (!valid) {
-                log.warn("支付宝回调验签失败 out_trade_no={}", params.get("out_trade_no"));
+                log.warn("支付宝回调验签不通过 out_trade_no={}", params.get("out_trade_no"));
                 return "failure";
             }
             String tradeStatus = params.get("trade_status");
@@ -90,7 +99,9 @@ public class PayService {
             }
             return "success";
         } catch (AlipayApiException e) {
-            log.error("支付宝回调处理异常", e);
+            // 验签阶段的 SDK 异常同样是「请求不合法」，堆栈降级到 debug 供排查
+            log.warn("支付宝回调验签异常：{}", e.getMessage());
+            log.debug("验签异常堆栈", e);
             return "failure";
         } catch (BusinessException e) {
             log.warn("支付宝回调业务处理失败：{}", e.getMessage());

@@ -3,12 +3,14 @@ package com.carcare.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.carcare.common.BaseContext;
 import com.carcare.common.Result;
+import com.carcare.dto.ReviewPublishDTO;
 import com.carcare.entity.Review;
 import com.carcare.service.FeedService;
 import com.carcare.service.ReviewService;
 import com.carcare.vo.BlogVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,9 +30,11 @@ public class ReviewController {
     private final FeedService feedService;
 
     @PostMapping
-    @Operation(summary = "发布笔记", description = "落库后推模式写扩散到粉丝收件箱（大账号除外）")
-    public Result<Long> publish(@RequestBody Review review) {
-        return Result.success(reviewService.publish(BaseContext.getUserId(), review));
+    @Operation(summary = "发布笔记/评价",
+            description = "带 orderId 走订单评价闭环：校验归属与完工态，发布后订单流转 4→6 并重算门店评分；"
+                    + "不带 orderId 即普通晒图笔记")
+    public Result<Long> publish(@RequestBody @Valid ReviewPublishDTO dto) {
+        return Result.success(reviewService.publish(BaseContext.getUserId(), dto));
     }
 
     @PostMapping("/{id}/like")
