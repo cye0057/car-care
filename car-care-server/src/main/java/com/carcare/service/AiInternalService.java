@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * AI 服务的只读数据通道（/api/internal/ai/**）。
@@ -47,14 +48,15 @@ public class AiInternalService {
     private final PackageItemMapper packageItemMapper;
     private final CouponMapper couponMapper;
 
-    /** 营业中门店：按城市/关键字模糊匹配。数据来自门店列表缓存，不打 DB */
-    public List<Store> stores(String city, String keyword, int limit) {
-        List<Store> enabled = storeService.listEnabled();
-        return enabled.stream()
+    /** 营业中门店：按 id 点查，或按城市/关键字模糊匹配。数据来自门店列表缓存，不打 DB */
+    public List<Store> stores(Long id, String city, String keyword, int limit) {
+        Stream<Store> matched = storeService.listEnabled().stream()
+                .filter(s -> id == null || id.equals(s.getId()))
                 .filter(s -> matchesCity(s, city))
-                .filter(s -> matchesKeyword(s, keyword))
-                .limit(limit)
-                .toList();
+                .filter(s -> matchesKeyword(s, keyword));
+        // 按 id 查是点查（生成预约草稿时要拿门店名），不能被 limit 截断；
+        // 只有「浏览门店列表」这种模糊查询才该受 limit 约束。
+        return (id != null ? matched : matched.limit(limit)).toList();
     }
 
     private boolean matchesCity(Store store, String city) {
@@ -77,7 +79,19 @@ public class AiInternalService {
     }
 
     /** 在售服务项目：只返回 status=1，与车主端浏览口径一致 */
-    public List<ServiceItem> items(Long storeId, String keyword, int limit) {
+    public List<ServiceItem> items(List<Long> ids, Long storeId, String keyword, int limit) {
+        if (ids != null && !ids.isEmpty()) {
+            // 按 id 点查，刻意不走分页：预约草稿靠它校验「这些项目是否属于这家店」，
+            // 若先 selectPage(limit=10) 取前 10 条再比对，第 11 个之后的项目会被判成
+            // 「不属于该门店」。这种假阴性会把模型推向「换一个它看得见的项目」，
+            // 结果就是用户要前刹车、草稿里却是列表里第一个的小保养。
+            // 这里也不按 storeId 过滤：要区分「项目不存在」和「项目属于别家店」，
+            // 过滤掉之后就只剩前者，错误提示会误导模型。
+            return itemMapper.selectList(Wrappers.<ServiceItem>lambdaQuery()
+                    .eq(ServiceItem::getStatus, 1)
+                    .in(ServiceItem::getId, ids)
+                    .orderByAsc(ServiceItem::getId));
+        }
         return itemMapper.selectPage(new Page<>(1, limit),
                 Wrappers.<ServiceItem>lambdaQuery()
                         .eq(ServiceItem::getStatus, 1)

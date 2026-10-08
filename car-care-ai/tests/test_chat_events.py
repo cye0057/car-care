@@ -58,6 +58,15 @@ def tool_call(name, call_id, args="{}", index=0):
     return {"name": name, "id": call_id, "args": args, "index": index, "type": "tool_call_chunk"}
 
 
+def tool_call_delta(args, index=0):
+    """续接分片：只有 index 和 args，没有 id 也没有 name。
+
+    这是 OpenAI 兼容格式的真实形状（DeepSeek 同样如此）：只有第一个分片带 id 与 name。
+    用 tool_call(...) 造分片会带上 id，掩盖掉「续接分片找不回槽位」这类 bug，所以单独留个构造器。
+    """
+    return {"name": None, "id": None, "args": args, "index": index, "type": "tool_call_chunk"}
+
+
 def tool_result(name, call_id, content):
     return ToolMessage(content=content, tool_call_id=call_id, name=name)
 
@@ -104,6 +113,52 @@ def test_tool_start_and_end_are_reported():
     assert end_event.toolOk is True
     assert "营业门店" in end_event.toolSummary
     assert events[-1].content == "杭州有 2 家门店。"
+
+
+def test_tool_args_land_on_tool_end_not_tool_start():
+    """参数分片到达，tool_start 在第一个分片就发出，那时参数还没到齐。
+
+    所以完整参数只能挂在 tool_end 上。这里的分片刻意按真实形状构造：
+    只有第一个分片带 id/name，续接分片只有 index+args。早先的实现用
+    `key = tc.get("id") or f"idx{index}"`，续接分片会另起一个槽位，
+    结果每个 tool_end 的 toolArgs 都是 null（实测踩到过）。
+    """
+    events = run_chat([
+        (ai_text("", [tool_call("search_service_items", "call_a", args='{"store_id": 1, "key')]),
+         {"langgraph_node": "model"}),
+        (ai_text("", [tool_call_delta('word": "前刹车"}')]), {"langgraph_node": "model"}),
+        (tool_result("search_service_items", "call_a", "查询到以下在售项目：- 项目ID=6"),
+         {"langgraph_node": "tools"}),
+        (ai_text("查到前刹车片了。"), {"langgraph_node": "model"}),
+    ])
+    start_event = next(e for e in events if e.type == "tool_start")
+    assert start_event.toolArgs is None, "参数还没到齐，不该给出一个看起来完整的空 {}"
+    end_event = next(e for e in events if e.type == "tool_end")
+    assert end_event.toolArgs == {"store_id": 1, "keyword": "前刹车"}
+
+
+def test_tool_args_survive_multiple_rounds_with_repeated_index():
+    """每轮的 index 都从 0 重新开始，续接分片必须映射回**本轮**的调用。
+
+    两轮的续接分片 index 都是 0，若 index→key 映射不随轮次清理，
+    第二轮的参数就会攒到第一轮的槽位里去。
+    """
+    events = run_chat([
+        (ai_text("", [tool_call("search_stores", "call_a", args='{"city": "杭')]),
+         {"langgraph_node": "model"}),
+        (ai_text("", [tool_call_delta('州"}')]), {"langgraph_node": "model"}),
+        (tool_result("search_stores", "call_a", "查询到以下营业门店：- 门店ID=1"),
+         {"langgraph_node": "tools"}),
+        (ai_text("", [tool_call("search_service_items", "call_b", args='{"keyword": "刹车')]),
+         {"langgraph_node": "model"}),
+        (ai_text("", [tool_call_delta('片"}')]), {"langgraph_node": "model"}),
+        (tool_result("search_service_items", "call_b", "查询到以下在售项目：- 项目ID=6"),
+         {"langgraph_node": "tools"}),
+        (ai_text("两轮都查到了。"), {"langgraph_node": "model"}),
+    ])
+    ends = {e.toolName: e.toolArgs for e in events if e.type == "tool_end"}
+    assert ends["search_stores"] == {"city": "杭州"}
+    assert ends["search_service_items"] == {"keyword": "刹车片"}
 
 
 def test_tool_failure_is_flagged():
@@ -219,6 +274,40 @@ def test_broken_draft_payload_does_not_break_the_stream():
     ])
     assert not [e for e in events if e.type == "draft"]
     assert events[-1].type == "done"
+    # 草稿没解析出来，模型却说「草稿已生成」——同样属于下面这条兜底要拦的情况
+    assert "没有生成预约卡片" in events[-1].content
+
+
+def test_claiming_a_draft_without_calling_the_tool_is_corrected():
+    """回归用例：模型不调 build_booking_draft 却在回答里宣称「草稿已生成」。
+
+    实测（deepseek-chat）8 次里出现 4 次，用户会去找一张根本不存在的卡片。
+    提示词已写明「调用工具才算生成」，但提示词只是概率约束，所以这里再兜一层。
+    """
+    events = run_chat([
+        (ai_text("", [tool_call("search_stores", "call_a")]), {"langgraph_node": "model"}),
+        (tool_result("search_stores", "call_a", "查询到以下营业门店：- 门店ID=1"),
+         {"langgraph_node": "tools"}),
+        (ai_text("帮你生成预约草稿：西湖文一店 · 前刹车片更换 ¥560，点卡片上的「确认预约」即可。"),
+         {"langgraph_node": "model"}),
+    ])
+    done = events[-1]
+    assert done.type == "done"
+    assert "没有生成预约卡片" in done.content, "宣称有草稿但没调工具，必须更正而不是让用户去找卡片"
+
+
+def test_asking_whether_to_build_a_draft_is_not_corrected():
+    """只是在征询「要不要帮你生成草稿？」，不是宣告，不该被误判成幻觉。"""
+    events = run_chat([(ai_text("要帮你生成预约草稿吗？"), {"langgraph_node": "model"})])
+    assert "没有生成预约卡片" not in events[-1].content
+
+
+def test_honest_refusal_is_not_corrected():
+    """模型如实说「无法生成草稿」时不该再补一句更正。"""
+    events = run_chat([
+        (ai_text("这家店没有前刹车片项目，我无法生成预约草稿。"), {"langgraph_node": "model"}),
+    ])
+    assert "没有生成预约卡片" not in events[-1].content
 
 
 # ---------------------------------------------------------------------------

@@ -79,6 +79,13 @@ async def stream_chat(req: ChatRequest) -> AsyncIterator[ChatEvent]:
     # 最终回答里会累积各轮的过渡语（实测踩到过，症状是回答里全是英文自述）。
     pending_calls: dict[str, dict] = {}
     call_names_by_id: dict[str, str] = {}
+    # 工具调用分片只有**第一个**分片带 id 与 name，后续分片只有 index + args（OpenAI 兼容格式）。
+    # 所以必须把 index 映射回该调用的 key，否则参数会被攒进另一个槽位，
+    # 表现出来就是 toolArgs 永远是空（实测踩到过）。
+    round_keys: dict[int, str] = {}
+    # 工具参数的完整值：tool_start 是在第一个分片就发出的（那时参数还没到齐，只能给出工具名），
+    # 所以完整参数挂到 tool_end 上，前端与排障日志才有得看。
+    call_args_by_id: dict[str, dict | None] = {}
     # 本轮是否产出了预约草稿。用于「模型没来得及写最终回答」时给一句有意义的收尾，
     # 而不是甩一句「抱歉没能生成回答」——草稿都出来了还说抱歉，用户会以为没成功。
     draft_ready = False
@@ -106,12 +113,18 @@ async def stream_chat(req: ChatRequest) -> AsyncIterator[ChatEvent]:
                     # --- 2) 工具调用分片 ---
                     for tc in getattr(chunk, "tool_call_chunks", None) or []:
                         index = tc.get("index") or 0
-                        key = tc.get("id") or f"idx{index}"
+                        # 续接分片没有 id，用本轮 index→key 的映射找回同一个槽位
+                        key = tc.get("id") or round_keys.get(index) or f"idx{index}"
+                        if tc.get("id"):
+                            round_keys[index] = key
                         slot = pending_calls.setdefault(key, {"name": None, "id": None, "args": ""})
                         if tc.get("id"):
                             slot["id"] = tc["id"]
                         if tc.get("args"):
                             slot["args"] += tc["args"]
+                            # 参数分片到达，每次覆盖成「截至目前能解析出来的」，
+                            # 最后一个分片到齐后即为完整参数。
+                            call_args_by_id[key] = _safe_json(slot["args"])
                         first_time = slot["name"] is None and tc.get("name")
                         if tc.get("name"):
                             slot["name"] = tc["name"]
@@ -125,7 +138,6 @@ async def stream_chat(req: ChatRequest) -> AsyncIterator[ChatEvent]:
                                 type="tool_start",
                                 toolName=slot["name"],
                                 toolLabel=label_for(slot["name"]),
-                                toolArgs=_safe_json(slot["args"]),
                             )
 
                 elif isinstance(chunk, ToolMessage):
@@ -140,6 +152,7 @@ async def stream_chat(req: ChatRequest) -> AsyncIterator[ChatEvent]:
                         toolLabel=label_for(name),
                         toolOk=ok,
                         toolSummary=_summarize(raw),
+                        toolArgs=call_args_by_id.get(tool_call_id),
                     )
                     if name == "build_booking_draft":
                         draft = _extract_draft(raw)
@@ -148,6 +161,7 @@ async def stream_chat(req: ChatRequest) -> AsyncIterator[ChatEvent]:
                             yield ChatEvent(type="draft", draft=draft)
                     # 工具执行完代表这一轮结束，清掉累积状态，避免下一轮的 index/id 撞车
                     pending_calls.clear()
+                    round_keys.clear()
 
                 if log.isEnabledFor(logging.DEBUG):
                     log.debug("stream chunk node=%s type=%s", node, type(chunk).__name__)
@@ -158,6 +172,14 @@ async def stream_chat(req: ChatRequest) -> AsyncIterator[ChatEvent]:
             answer = _fallback_answer(draft_ready, bool(call_names_by_id))
             log.warning("模型未产出最终正文，使用兜底回答 session=%s draft=%s tools=%d",
                         req.sessionId, draft_ready, len(call_names_by_id))
+        # 幻觉兜底：模型有时**不调用** build_booking_draft，却在回答里写「草稿已生成、点卡片确认预约」，
+        # 用户于是去找一张根本不存在的卡片。提示词已写明「调用工具才算生成」，但那只是概率约束，
+        # 这里再兜一层：声称有草稿而实际没产出，就补一句更正。
+        if not draft_ready and _claims_draft(answer):
+            log.warning("模型声称已生成预约草稿但未调用工具 session=%s", req.sessionId)
+            correction = ("\n\n（更正：这次其实没有生成预约卡片，请把门店和要做的项目再说一次，我重新生成。）")
+            yield ChatEvent(type="delta", content=correction)
+            answer += correction
         yield ChatEvent(
             type="done",
             content=answer,
@@ -194,6 +216,23 @@ def _safe_json(raw: str) -> dict | None:
 def _looks_failed(raw: str) -> bool:
     """工具失败时返回的是中文失败文案（见 tools/_common.py），据此判断成败。"""
     return "失败" in raw[:60] or "暂时不可用" in raw[:60]
+
+
+# 模型「声称草稿已生成」的措辞，以及明确否认生成的措辞。
+# 用关键词而不是语义判断是启发式：宁可漏判（少补一句更正），也不要在模型只是
+# 询问「要不要帮你生成草稿？」时误报。末尾是问句的一律跳过。
+_DRAFT_CLAIM = ("草稿已生成", "草稿已经", "已生成草稿", "预约草稿", "预约卡片", "确认预约")
+_DRAFT_DENY = ("无法生成", "不能生成", "没有生成", "没能生成", "未生成", "生成失败")
+
+
+def _claims_draft(answer: str) -> bool:
+    """回答里是否在宣告「预约草稿已生成」。用于兜住「没调工具却报成功」的幻觉。"""
+    text = answer.strip()
+    if not text or text.endswith(("？", "?")):
+        return False
+    if any(neg in text for neg in _DRAFT_DENY):
+        return False
+    return any(claim in text for claim in _DRAFT_CLAIM)
 
 
 def _summarize(raw: str, limit: int = 120) -> str:

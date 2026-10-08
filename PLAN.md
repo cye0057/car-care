@@ -209,4 +209,29 @@ D:/study_xue/JAVA_code/car-care/
   - **入库前密钥扫描（本次的重点）**：写了个脚本先从真实配置（`car-care-ai/.env`、`application.yml`）里抽出 7 个敏感值——支付宝应用私钥(1624 字符)、支付宝公钥、SiliconFlow embedding key、JWT secret、内部调用令牌、DeepSeek key、OSS AccessKeyId——再逐个扫描 git 实际会提交的 255 个文件。**零命中**。同时确认 `car-care-ai/.env`、`car-care-ai/data/`、`.venv/`、`application.yml` 均未被暂存（`.env.example` 是占位符模板，应当入库）。扫描脚本在 `D:\study_xue\_resume_build\scan_secrets.py`。
     > 顺带记录一个环境坑：`C:\Users\Chen ye\AppData\Local\Temp\` 下堆了几百个解压出来的 `.py`，其中有一个 `typing.py`。任何以 Temp 为工作目录（或脚本放在 Temp）的 Python 进程都会被它遮蔽标准库 `typing`，报 `SyntaxError: source code string cannot contain null bytes`，且回溯指向毫不相关的 `docx/__init__.py`。脚本一律放干净目录。
   - 附带记录：`document/jmeter/seckill-users.csv` 里含一个本地测试用户的 JWT，是历史提交 `4b78eef` 就有的。该 token 由 `application.yml` 里的 JWT secret 签发，而 secret 从未入库，所以这个 token 只在本地同一套配置下有效，不构成泄露；留着不动。
+- 2026-10-08：**修复 AI 预约「要前刹车却订到小保养」+ 补齐套餐草稿与下单页预填**。
+  - **现象**：用户让 AI 约「前刹车」，结果草稿是「小保养」。
+  - **复现方法**：起 Java(8082) + Python(8000) 后，直接打 Python 的 `/v1/chat/sync`（非流式，便于批量采样）与 `/v1/chat`（流式，能拿到 `tool_start`/`tool_end`），用真实用户上下文（张三 + 车 1 + 一笔小保养订单）跑同一句话多次。**不猜模型行为，只采样统计。**
+  - **根因一（主因，已复现）：模型不调工具却宣称「草稿已生成」**。8 次采样里 **4 次**只调了 `search_stores`/`search_service_items` 就写出「帮你生成预约草稿……点卡片上的确认预约即可」，`build_booking_draft` 从未被调用，**卡片根本不存在**。根因是提示词硬约束 4 的原句「生成草稿后要说明：需要用户点击卡片上的确认按钮才会真正下单」——这句本意是约束语气，实际给了模型一句**可照抄的成品话术**，抄了就不必调工具。用户看不到卡片，却可能点上一轮遗留的旧卡片（旧卡片是之前聊小保养时生成的）→ 这就是「订到小保养」的路径。
+  - **根因二（隐患，代码层已确认）：草稿归属校验拿分页结果比对**。`build_booking_draft` 内部用 `search_items(store_id=...)`（默认 `limit=10`、`orderByAsc(id)`）取回前 10 条再比对 `item_ids`（日志可见 `GET /api/internal/ai/items?storeId=1&limit=10`）。门店项目一旦超过 10 个，第 11 个之后的**合法项目会被判成「不属于该门店或在售状态已变更」**，而错误提示把「不存在」和「属于别家店」合并成一句，模型无法判断该换项目还是换门店，于是**从自己看得见的项目里换一个顶上**——小保养是每家店的第一个项目。现有种子数据门店 1 只有 8 个项目，所以这条**当前不触发**，但属于必然踩到的地雷，且是「要 A 订到 B」这类症状的典型机制。
+    > 另外两条同类隐患一并修掉：① 取门店名用的是 `search_stores()`（无过滤、`limit=5`），门店多于 5 家时会静默退化成「门店 {id}」；② 套餐校验用 `list_packages(store_id)`（默认 `limit=5`）。
+  - **根因三（排障时顺带发现）：`toolArgs` 恒为空**。`tool_start` 是在工具调用**第一个分片**就发出的，那一刻参数还没到齐；而 `key = tc.get("id") or f"idx{index}"` 让续接分片（**只有 `index`+`args`，没有 `id` 和 `name`**）掉进 `or` 兜底分支另起一个槽位，参数全被攒进另一个槽位。症状就是模型明明传了 `{"store_id":1,"item_ids":[6]}`，前端和日志里只有 `{}`/`null`——我这次想确认模型传了什么，正是被它挡住。
+  - **修复**：
+    1. **提示词层**：硬约束 4 改写为「**预约草稿只能由 `build_booking_draft` 产出，调用了才有卡片**；调用成功前不要说『草稿已生成』、不要描述草稿内容、不要提『卡片』和『确认预约』」。并补「这家店没有用户要的项目时如实说明并给出相近项目，**不要擅自替换**」。改写后同口径 8 次采样 **8/8 正确**（改前 4/8）。
+    2. **代码兜底层**：`stream_chat` 收尾核对「回答在宣称草稿已生成」而「本次没有 draft 事件」→ 追加一个 `delta` 更正并记 warning（`_claims_draft`，末尾问句与否定词跳过，宁可漏判不误判）。正文已流式发出无法改写，只能补一句，且必须计入 `done.content` 否则落库文本与用户所见不一致。
+    3. **内部接口加点查**：`/api/internal/ai/items` 新增 `ids`（**不分页、且不按 storeId 过滤**——带上 storeId 会让跨门店项目静默消失，又只剩「查不到」一种解释）；`/stores` 新增 `id`。`AiInternalService` 侧按 id 走 `selectList`，浏览路径仍走 `selectPage`。Python 客户端 `search_items(ids=[...])` / `search_stores(store_id=...)`。
+    4. **草稿工具重写**：按 id 点查后**分别判断**「查不到」与「`storeId` 不等于目标门店」，两条提示分开写（前者让模型重查，后者明确要求「由用户决定换项目还是换门店，不要擅自替换」）；门店查不到（不存在/未营业）直接拒绝生成，不再退化成「门店 {id}」。
+    5. **`toolArgs` 修正**：`tool_start` 不再发假的空 `{}`（改为不传），完整参数挂到 `tool_end`；新增本轮 `index → key` 映射 `round_keys` 供续接分片找回槽位，随分片缓存一起在轮末清掉。
+  - **顺带补功能（用户要求「改对，不要偷懒」）**：
+    - **套餐草稿**：`build_booking_draft` 新增 `package_id`（必须来自 `get_packages`，按 `store_id` 校验归属），`itemNames` 放套餐名（否则卡片「项目」那一行是空的），`packageName` 一并带上；**拒绝套餐与单项同时传**（平台一张订单只含一个套餐或一个项目，同时传会让前端只下其中一个、另一个静默消失）。前端卡片标签按 `packageId` 动态切「套餐/项目」，套餐单不再显示「一单只含一个项目」的提示。这条把原先完全走不到的死代码（`BookingDraft.packageId`、`goBooking` 的 `packageId` 分支、`OrderCreate` 的套餐分支）激活了。
+    - **下单页时间选择器修正**：原先用 `van-date-picker` 只选日期，提交时把时间**硬编码成 `10:00:00`**——不管用户怎么点，到店时间永远是 10:00。改为 `van-picker-group`（日期 + 时间两步），确认时拼成 `yyyy-MM-dd HH:mm`，提交补 `:00`。这同时修掉了一个既有缺陷。
+    - **预填车辆与到店时间**：`goBooking` 透传 `appointmentTime`/`vehicleId`；`OrderCreate` 在 `myVehiclesApi()` 返回后按 id 找回车辆（**找不到就留空让用户自己选**，AI 上下文是请求时刻快照，车可能已被删）。到店时间**先做格式校验再预填**：AI 给的是模型从用户话里抽的自由文本，原样塞进请求会被后端 `@JsonFormat("yyyy-MM-dd HH:mm:ss")` 打回 400，所以只认 `yyyy-MM-dd HH:mm`（允许尾随秒），且早于今天的日期一律不预填（选择器下限是今天，塞进去会选中非法值）。
+  - **验证**：
+    - Python `pytest` **43 passed**（原 33 + 新增 10：跨门店套餐被拒、套餐+单项互斥、门店不存在、区分「查不到/属于别家店」、`toolArgs` 落在 `tool_end`、多轮 index 复用、幻觉兜底正/反例）。新加的用例都按**真实分片形状**构造（续接分片不带 id），否则盖不住刚修的那个坑。
+    - Java `mvn -o compile` 通过；`/items?ids=6,10` 实测跨门店返回两条（不再被 storeId 吞掉），`/stores?id=2` 点查正常，浏览路径 `/items?storeId=1&limit=10` 仍返回 8 条不变。
+    - 前端 `npm run build` 通过。
+    - **真实对话端到端**：8/8 出正确草稿（`itemIds=[6]` 前刹车片）；套餐 2/2（`packageId=1`、`itemNames=["安心小保养套餐"]`、¥668）；`tool_end` 已能看到 `{"store_id":1,"item_ids":[6]}`。
+    - **浏览器实测**（本地 dev server + 张三账号）：聊天页发出「帮我约西湖文一店的前刹车片更换，明天下午3点，用我的浙A·88888」→ 卡片显示「前刹车片更换（一对）/ 2026-10-09 15:00 / ¥560.00」→ 点「确认预约」→ 跳转 URL 为 `/order-create?storeId=1&itemId=6&appointmentTime=2026-10-09+15:00&vehicleId=1`，下单页**车辆与到店时间均已预填**；再打开时间选择器改选 16 日 15:45，单元格正确回显 `2026-10-16 15:45`（证明 `picker-group` 的数组载荷解析无误）。
+  - 文档：`AI-LEARNING.md` 3.6 的分片示意图**原本是错的**（把续接分片也画成带 `id`），已按真实形状改正并补上 `or f"idx{index}"` 这个坑；新增 4.9「不调工具却报成功」整节（提示词话术即幻觉模板 + 代码兜底 + 三条误解），4.8 补「校验必须点查、不能拿分页结果比对」。
+  - 排障脚本留在 `D:\study_xue\_ai_debug\`（仓库外，未入库）。Java/Python 服务与前端 dev server 当前仍在运行（Java 8082、Python 8000、前端 5174）。**本次改动未提交 git**（10 个文件）。
 - 后续可选优化（非必需）：app 侧发布笔记→Feed 展示回归、订单按状态分组 tab；MySQL/RabbitMQ 注册为 Windows 服务开机自启；生产化补充多实例水平扩展与真实网络延迟验证；支付密钥就绪后的真机回调联调；**AI 模块的限流与按用户/按天 token 成本核算**（现在只落库未汇总）、工具轮数用满时改「强制收尾轮」而不是靠兜底文案、**上探 AI 并发出错点**（100 并发仍 0 错误，上限未知）、知识库从工单/评价自动挖掘 FAQ、后台运营助手（复用同一套 Python 服务，换 admin 侧上下文与工具集）

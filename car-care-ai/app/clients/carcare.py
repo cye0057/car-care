@@ -84,14 +84,17 @@ class CarCareClient:
     # ------------------------------------------------------------------
 
     async def search_stores(self, city: str | None = None, keyword: str | None = None,
-                            limit: int = 5) -> ToolResult:
+                            store_id: int | None = None, limit: int = 5) -> ToolResult:
+        """store_id 走 id 点查（Java 侧不受 limit 约束），用于按 id 取门店名。"""
         return await self._get_list("/api/internal/ai/stores",
-                                    {"city": city, "keyword": keyword, "limit": limit})
+                                    {"id": store_id, "city": city, "keyword": keyword, "limit": limit})
 
     async def search_items(self, store_id: int | None = None, keyword: str | None = None,
-                           limit: int = 10) -> ToolResult:
+                           ids: list[int] | None = None, limit: int = 10) -> ToolResult:
+        """ids 走 id 点查（Java 侧不分页），用于校验指定项目是否存在、属于哪家门店。"""
         return await self._get_list("/api/internal/ai/items",
-                                    {"storeId": store_id, "keyword": keyword, "limit": limit})
+                                    {"ids": ",".join(str(i) for i in ids) if ids else None,
+                                     "storeId": store_id, "keyword": keyword, "limit": limit})
 
     async def list_packages(self, store_id: int, limit: int = 5) -> ToolResult:
         return await self._get_list("/api/internal/ai/packages",

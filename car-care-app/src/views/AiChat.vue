@@ -38,11 +38,16 @@
         <div v-if="m.draft" class="draft-card">
           <div class="draft-head">预约草稿</div>
           <div class="draft-row"><span>门店</span><b>{{ m.draft.storeName }}</b></div>
-          <div class="draft-row"><span>项目</span><b>{{ (m.draft.itemNames || []).join('、') }}</b></div>
+          <!-- 套餐单的 itemNames 放的是套餐名，标签跟着换，避免读成「项目：安心小保养套餐」 -->
+          <div class="draft-row">
+            <span>{{ m.draft.packageId ? '套餐' : '项目' }}</span>
+            <b>{{ (m.draft.itemNames || []).join('、') }}</b>
+          </div>
           <div class="draft-row" v-if="m.draft.appointmentTime"><span>到店时间</span><b>{{ m.draft.appointmentTime }}</b></div>
           <div class="draft-row"><span>预估金额</span><b class="price">¥{{ Number(m.draft.estimatedAmount || 0).toFixed(2) }}</b></div>
           <div v-if="m.draft.note" class="draft-note">{{ m.draft.note }}</div>
-          <div v-if="(m.draft.itemIds || []).length > 1" class="draft-note">
+          <!-- 套餐本身就是多项目的，不适用「一单只含一个项目」的提示 -->
+          <div v-if="!m.draft.packageId && (m.draft.itemIds || []).length > 1" class="draft-note">
             平台一张订单只包含一个项目，这里会先为你下第一项，其余项目请分别下单
           </div>
           <van-button block round size="small" color="#0d9488" @click="goBooking(m.draft)">确认预约</van-button>
@@ -186,6 +191,9 @@ function goBooking(draft) {
   const query = { storeId: draft.storeId }
   if (draft.packageId) query.packageId = draft.packageId
   else if (draft.itemIds?.length) query.itemId = draft.itemIds[0]
+  // 到店时间与车辆一并带到下单页预填，否则用户要在卡片上看到时间、到了下单页再选一遍
+  if (draft.appointmentTime) query.appointmentTime = draft.appointmentTime
+  if (draft.vehicleId) query.vehicleId = draft.vehicleId
   router.push({ path: '/order-create', query })
 }
 

@@ -34,20 +34,26 @@ public class AiInternalController {
 
     private final AiInternalService aiInternalService;
 
+    /** 点查 id 个数上限，与 clamp(limit) 同一目的：限制单次请求的规模 */
+    private static final int MAX_IDS = 50;
+
     @GetMapping("/stores")
-    @Operation(summary = "营业中门店", description = "复用门店列表缓存；city/keyword 模糊匹配")
-    public Result<List<Store>> stores(@RequestParam(required = false) String city,
+    @Operation(summary = "营业中门店", description = "复用门店列表缓存；id 点查，或 city/keyword 模糊匹配")
+    public Result<List<Store>> stores(@RequestParam(required = false) Long id,
+                                     @RequestParam(required = false) String city,
                                      @RequestParam(required = false) String keyword,
                                      @RequestParam(defaultValue = "5") Integer limit) {
-        return Result.success(aiInternalService.stores(city, keyword, clamp(limit)));
+        return Result.success(aiInternalService.stores(id, city, keyword, clamp(limit)));
     }
 
     @GetMapping("/items")
-    @Operation(summary = "在售服务项目", description = "只返回 status=1 的项目")
-    public Result<List<ServiceItem>> items(@RequestParam(required = false) Long storeId,
+    @Operation(summary = "在售服务项目",
+            description = "只返回 status=1 的项目。传 ids 时按 id 点查且不分页（供预约草稿校验归属）")
+    public Result<List<ServiceItem>> items(@RequestParam(required = false) List<Long> ids,
+                                          @RequestParam(required = false) Long storeId,
                                           @RequestParam(required = false) String keyword,
                                           @RequestParam(defaultValue = "10") Integer limit) {
-        return Result.success(aiInternalService.items(storeId, keyword, clamp(limit)));
+        return Result.success(aiInternalService.items(clampIds(ids), storeId, keyword, clamp(limit)));
     }
 
     @GetMapping("/packages")
@@ -70,5 +76,13 @@ public class AiInternalController {
             return 5;
         }
         return Math.min(limit, 50);
+    }
+
+    /** 点查的 id 个数上限：一次草稿不可能有几十个项目，超出的直接截断，避免拼出超长 IN 子句 */
+    private List<Long> clampIds(List<Long> ids) {
+        if (ids == null || ids.size() <= MAX_IDS) {
+            return ids;
+        }
+        return ids.subList(0, MAX_IDS);
     }
 }
