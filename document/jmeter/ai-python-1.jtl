@@ -1,0 +1,2 @@
+timeStamp,elapsed,label,responseCode,responseMessage,threadName,dataType,success,failureMessage,bytes,sentBytes,grpThreads,allThreads,URL,Latency,IdleTime,Connect
+1790249444254,1639,POST /api/ai/chat (SSE),200,OK,SSE 并发对话 1-1,text,true,,10685,330,1,1,http://127.0.0.1:8000/v1/chat,19,0,13

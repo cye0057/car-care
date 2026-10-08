@@ -4,6 +4,10 @@ car-care-server/src/main/resources/application.yml
 **/application-local.yml
 .env
 .env.*
+# 例外：模板文件必须入库，否则别人 clone 下来不知道怎么配。
+# 注意 .env.* 会连 .env.example 一起吞掉（同 application.yml.example 是同一个坑），
+# 所以这里显式放行；car-care-ai/.env.example 靠这条才进得了版本库。
+!**/.env.example
 *.local
 
 # ============ Java / Maven ============

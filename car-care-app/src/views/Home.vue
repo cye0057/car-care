@@ -18,12 +18,16 @@
                :value="`${s.distanceKm} km`" @click="$router.push(`/store/${s.id}`)" />
       <van-empty v-if="!nearby.length" description="当前定位 20km 内暂无门店" image-size="60" />
     </div>
+
+    <!-- AI 养车顾问入口：悬浮在主框架之上，避开底部 tabbar -->
+    <AiFloatingButton />
   </div>
 </template>
 
 <script setup>
 import { onActivated, ref } from 'vue'
 import { hotStoresApi, nearbyStoresApi } from '../api'
+import AiFloatingButton from '../components/AiFloatingButton.vue'
 
 const name = localStorage.getItem('app_name') || ''
 const hot = ref([])

@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * 号段模式发号器（不可变号段 + 原子换段 + 双缓冲预取）。
+ * 号段模式发号器（不可变号段 + 原子换段 + 预取下一段）。
  * <p>
  * 原理：每次不是向 DB 逐条自增，而是 UPDATE max_id = max_id + step 一次性「预占」
  * 一个号段 (old, new]，之后 step 次发号只在内存 AtomicLong 上递增。
@@ -46,7 +46,7 @@ public class SegmentService {
         final long max;
         final int step;
         final AtomicBoolean loading = new AtomicBoolean(false);
-        /** 预取好的下一段（双缓冲） */
+        /** 预取好的下一段：换段时直接顶上，避免在锁里同步等一次 DB */
         volatile Segment next;
 
         Segment(String bizType, long current, long max, int step) {

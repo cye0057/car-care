@@ -251,7 +251,7 @@ UUID   ：不查 DB，但无序导致 B+ 树页随机插入、索引分裂
 号段   ：一次取一段（步长 100）→ 本地内存发 100 个 → 1000 个号 = 10 次 DB 操作
 ```
 
-**双缓冲 + 90% 预取**解决什么问题？「当前段用完了，要等下一次 DB 查询」的瞬间毛刺。做法：当前段用到 90% 时就**异步**去取下一段，取号的时候几乎不等待。
+**预取下一段 + 90% 触发**解决什么问题？
 
 > **代码位置**：`service/SegmentService.java`（157 行）。
 
@@ -339,16 +339,20 @@ redis-cli -h 192.168.1.4 DEL "cache:store:1"
 
 ### 4.2 延迟双删
 
-**原理**：解决「写事务回滚前回填旧值」的竞态。
+**原理**：解决「删缓存之后，先前那次读请求才把旧值回填进缓存」的竞态。
 
 **时序图**（一定要画一遍）：
 ```
-T1  读请求 miss，回源 DB，读到旧值 V1
-T2  写事务提交 V2，删缓存
-T3  写事务回滚（因为某个异常）
-T4  T1 把 V1 写回缓存     ← 缓存里是旧值，DB 里也是旧值，看起来"一致"但 V2 丢了
-T5  延迟 500ms 后再删一次   ← 清掉 T4 写入的脏值
+T1  读请求 miss，回源 DB，读到旧值 V1   ← 此时还没写回缓存
+T2  写请求更新 DB 为 V2，删缓存
+T3  T1 才把 V1 写回缓存                 ← 脏值驻留，后续读请求拿到的都是旧值
+T4  延迟 500ms 后再删一次               ← 清掉 T3 回填的脏值
 ```
+
+> ⚠️ 本项目 `StoreService` 的写方法上**没有 `@Transactional`**，删缓存就发生在方法体里，
+> 所以**不需要**「写事务回滚」这个前提。真正的竞态是「读请求 miss → 回源 → 回填」这条链路
+> 横跨了写请求的「更新 DB + 删缓存」，回填落在删除之后。网上讲延迟双删常拿「事务回滚」当例子，
+> 那是另一个变体，照搬到这个项目上会被追问穿。
 
 **本项目代码**：`common/CacheHelper.java`，双删间隔 500ms。
 
@@ -477,7 +481,7 @@ redis-cli -h 192.168.1.4 GEOPOS "cache:store:geo" "1"
 5. resources/lua/seckill_voucher.lua (最短最纯粹，先看 Lua 原子性)
 6. common/CacheHelper.java      (缓存工具箱，理解三件套)
 7. service/VoucherSeckillService.java (最复杂的一条业务链路)
-8. service/SegmentService.java  (号段发号，理解双缓冲)
+8. service/SegmentService.java  (号段发号，理解预取与换段)
 9. service/FeedService.java     (分页与合并去重)
 10. websocket/WebSocketServer.java + service/WsNotifyService.java
 ```
@@ -501,7 +505,7 @@ redis-cli -h 192.168.1.4 GEOPOS "cache:store:geo" "1"
 | 7 | 关单幂等 | 已支付订单等 TTL 到期 | 状态不变（不是"已取消"） | 消费端状态判断 |
 | 8 | Feed 推拉切换 | 阈值 3000→0 | 收件箱不增长但 Feed 仍有数据 | 双模式实测 |
 | 9 | GEO 实时同步 | 改门店坐标 | GEOPOS 立即更新 | 写路径同步 |
-| 10 | 号段消耗 | 连续下单，查 `t_seq_alloc` | max 值按步长 100 跳 | 双缓冲预取 |
+| 10 | 号段消耗 | 连续下单，查 `t_seq_alloc` | max 值按步长 100 跳 | 预取下一段 |
 
 ### 实验的通用方法
 

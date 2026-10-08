@@ -65,6 +65,17 @@ carcare:
       notify-url: "http://<your-public-tunnel>/api/notify/alipay"  # 需公网可达（内网穿透映射 8082）
   feed:
     push-follower-threshold: 3000   # 粉丝数超此阈值的作者发帖不写扩散（拉模式）
+  ai:
+    enabled: true                   # AI 助手总开关；置 false 后 /api/ai/** 直接返回友好提示
+    base-url: http://127.0.0.1:8000 # car-care-ai（Python FastAPI）地址，只绑本机
+    internal-token: "<change-me-shared-secret>"  # 必须与 car-care-ai 的 CARCARE_INTERNAL_TOKEN 一致
+    connect-timeout-ms: 3000        # 建连超时：AI 服务在本机，3 秒连不上就是没起来
+    stream-timeout-ms: 180000       # 流式响应的**空闲**读超时（两次数据之间的最大间隔），不是总时长
+    history-rounds: 6               # 每次下发给 AI 的历史轮数（Python 无状态，历史由 Java 下发）
+    context-order-limit: 5          # 用户上下文里带几笔近期订单
+    context-vehicle-limit: 5        # 带几台车
+    context-coupon-limit: 10        # 带几张已领取的优惠券
+    context-order-item-limit: 3     # 每笔订单带几个项目明细
 
 springdoc:
   swagger-ui:

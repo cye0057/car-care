@@ -18,6 +18,14 @@
       </van-cell-group>
       <input ref="fileInput" type="file" accept="image/*" class="hidden-file" @change="onAvatarPick" />
 
+      <!-- AI 入口放在这里而不是悬浮球：我的页面底部有退出登录按钮，悬浮球会挡住 -->
+      <van-cell-group inset style="margin-top: 12px">
+        <van-cell title="AI 养车顾问" label="查门店价格、看工单进度、判断保养时机" is-link
+                  @click="$router.push('/ai')">
+          <template #icon><span class="ai-icon">AI</span></template>
+        </van-cell>
+      </van-cell-group>
+
       <div class="card-title">
         <span>我的车辆</span>
         <span class="add-btn" @click="openVehicle()">＋ 添加</span>
@@ -186,6 +194,7 @@ async function removeVehicle() {
 .mine-name { font-size: 16px; font-weight: 600; color: #222; }
 .mine-id { font-size: 12px; color: #999; margin-top: 2px; }
 .add-btn { font-size: 13px; color: #0d9488; cursor: pointer; }
+.ai-icon { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; margin-right: 10px; border-radius: 9px; background: linear-gradient(135deg, #0d9488, #14b8a6); color: #fff; font-size: 13px; font-weight: 700; }
 .vehicle-pop { padding: 16px 0 24px; }
 .pop-title { text-align: center; font-size: 16px; font-weight: 600; margin-bottom: 12px; }
 </style>

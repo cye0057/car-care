@@ -16,7 +16,8 @@ const routes = [
   { path: '/store/:id', component: () => import('../views/Store.vue') },
   { path: '/seckill', component: () => import('../views/Seckill.vue') },
   { path: '/order-create', component: () => import('../views/OrderCreate.vue') },
-  { path: '/publish', component: () => import('../views/Publish.vue') }
+  { path: '/publish', component: () => import('../views/Publish.vue') },
+  { path: '/ai', component: () => import('../views/AiChat.vue'), meta: { title: 'AI 养车顾问' } }
 ]
 
 const router = createRouter({ history: createWebHistory(), routes })

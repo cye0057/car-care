@@ -1,0 +1,21 @@
+timeStamp,elapsed,label,responseCode,responseMessage,threadName,dataType,success,failureMessage,bytes,sentBytes,grpThreads,allThreads,URL,Latency,IdleTime,Connect
+1790249184842,1758,POST /api/ai/chat (SSE),200,,SSE 并发对话 1-1,text,true,,49972,431,4,4,http://127.0.0.1:8082/api/ai/chat,40,0,13
+1790249185287,1423,POST /api/ai/chat (SSE),200,,SSE 并发对话 1-2,text,true,,48815,431,3,3,http://127.0.0.1:8082/api/ai/chat,22,0,0
+1790249185787,1782,POST /api/ai/chat (SSE),200,,SSE 并发对话 1-3,text,true,,47779,431,4,4,http://127.0.0.1:8082/api/ai/chat,37,0,0
+1790249186284,1693,POST /api/ai/chat (SSE),200,,SSE 并发对话 1-4,text,true,,48803,431,4,4,http://127.0.0.1:8082/api/ai/chat,23,0,1
+1790249186785,1452,POST /api/ai/chat (SSE),200,,SSE 并发对话 1-5,text,true,,49532,431,3,3,http://127.0.0.1:8082/api/ai/chat,22,0,1
+1790249187284,1608,POST /api/ai/chat (SSE),200,,SSE 并发对话 1-6,text,true,,47297,431,4,4,http://127.0.0.1:8082/api/ai/chat,34,0,1
+1790249187783,1559,POST /api/ai/chat (SSE),200,,SSE 并发对话 1-7,text,true,,47291,431,4,4,http://127.0.0.1:8082/api/ai/chat,21,0,1
+1790249188284,1559,POST /api/ai/chat (SSE),200,,SSE 并发对话 1-8,text,true,,49484,431,4,4,http://127.0.0.1:8082/api/ai/chat,23,0,1
+1790249188783,1453,POST /api/ai/chat (SSE),200,,SSE 并发对话 1-9,text,true,,46791,431,3,3,http://127.0.0.1:8082/api/ai/chat,20,0,1
+1790249189284,1573,POST /api/ai/chat (SSE),200,,SSE 并发对话 1-10,text,true,,54326,431,4,4,http://127.0.0.1:8082/api/ai/chat,22,0,1
+1790249189785,1395,POST /api/ai/chat (SSE),200,,SSE 并发对话 1-11,text,true,,49520,431,3,3,http://127.0.0.1:8082/api/ai/chat,19,0,1
+1790249190285,1535,POST /api/ai/chat (SSE),200,,SSE 并发对话 1-12,text,true,,46791,431,4,4,http://127.0.0.1:8082/api/ai/chat,21,0,1
+1790249190784,1522,POST /api/ai/chat (SSE),200,,SSE 并发对话 1-13,text,true,,46863,431,4,4,http://127.0.0.1:8082/api/ai/chat,22,0,1
+1790249191291,1470,POST /api/ai/chat (SSE),200,,SSE 并发对话 1-14,text,true,,45134,431,3,3,http://127.0.0.1:8082/api/ai/chat,21,0,1
+1790249191799,1416,POST /api/ai/chat (SSE),200,,SSE 并发对话 1-15,text,true,,47038,431,3,3,http://127.0.0.1:8082/api/ai/chat,19,0,0
+1790249192286,1334,POST /api/ai/chat (SSE),200,,SSE 并发对话 1-16,text,true,,53338,431,3,3,http://127.0.0.1:8082/api/ai/chat,20,0,0
+1790249192784,1363,POST /api/ai/chat (SSE),200,,SSE 并发对话 1-17,text,true,,46821,431,3,3,http://127.0.0.1:8082/api/ai/chat,21,0,1
+1790249193283,1487,POST /api/ai/chat (SSE),200,,SSE 并发对话 1-18,text,true,,52693,431,3,3,http://127.0.0.1:8082/api/ai/chat,19,0,1
+1790249193783,1510,POST /api/ai/chat (SSE),200,,SSE 并发对话 1-19,text,true,,47809,431,2,2,http://127.0.0.1:8082/api/ai/chat,20,0,1
+1790249194285,1504,POST /api/ai/chat (SSE),200,,SSE 并发对话 1-20,text,true,,46351,431,1,1,http://127.0.0.1:8082/api/ai/chat,19,0,0

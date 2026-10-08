@@ -1,0 +1,6 @@
+timeStamp,elapsed,label,responseCode,responseMessage,threadName,dataType,success,failureMessage,bytes,sentBytes,grpThreads,allThreads,URL,Latency,IdleTime,Connect
+1790249176829,1358,POST /api/ai/chat (SSE),200,,SSE 并发对话 1-1,text,true,,49743,431,2,2,http://127.0.0.1:8082/api/ai/chat,58,0,14
+1790249177781,1539,POST /api/ai/chat (SSE),200,,SSE 并发对话 1-2,text,true,,54175,431,2,2,http://127.0.0.1:8082/api/ai/chat,28,0,1
+1790249178772,1403,POST /api/ai/chat (SSE),200,,SSE 并发对话 1-3,text,true,,48267,431,2,2,http://127.0.0.1:8082/api/ai/chat,27,0,1
+1790249179771,1528,POST /api/ai/chat (SSE),200,,SSE 并发对话 1-4,text,true,,49528,431,2,2,http://127.0.0.1:8082/api/ai/chat,24,0,0
+1790249180771,1376,POST /api/ai/chat (SSE),200,,SSE 并发对话 1-5,text,true,,48032,431,1,1,http://127.0.0.1:8082/api/ai/chat,22,0,1

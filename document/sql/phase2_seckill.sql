@@ -3,7 +3,7 @@
 -- ============================================
 USE car_care;
 
--- 号段模式发号器表（双缓冲版，实体 com.carcare.entity.SeqAlloc）
+-- 号段模式发号器表（不可变号段 + 预取下一段，实体 com.carcare.entity.SeqAlloc）
 CREATE TABLE IF NOT EXISTS t_seq_alloc (
     biz_type    VARCHAR(32) PRIMARY KEY COMMENT '业务标识',
     max_id      BIGINT NOT NULL COMMENT '当前已批发到的号段上界',

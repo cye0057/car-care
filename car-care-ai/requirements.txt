@@ -1,0 +1,40 @@
+# 车管家 AI 助手服务（FastAPI + LangChain）
+# 环境：Python 3.13（实测 3.13.0 与 3.13.12 均可）；与 langchain1.2 练习环境同源，可直接复用 conda env
+#
+# 安装：python -m pip install -r requirements.txt
+#
+# 下面钉的版本 = 本机 conda env `langchain1.2` 里**实际跑通**的版本，
+# 不是随手写的。改版本前先确认 PyPI 上真的存在（曾把 langchain-chroma 钉成不存在的 0.3.3）。
+
+# ---- Web 服务 ----
+fastapi==0.135.1
+uvicorn[standard]==0.46.0
+sse-starlette==3.3.4
+
+# ---- 配置与校验 ----
+pydantic==2.12.5
+pydantic-settings==2.12.0
+python-dotenv==1.2.1
+
+# ---- LangChain 1.x / LangGraph ----
+langchain==1.2.12
+langchain-core==1.2.18
+langgraph==1.1.2
+# 必须钉死这个传递依赖：pip 会解析到 langgraph-prebuilt 1.0.10，它与 langgraph 1.1.2 不兼容，
+# 报 ImportError: cannot import name 'ExecutionInfo' from 'langgraph.runtime'
+langgraph-prebuilt==1.0.8
+
+# ---- 模型与向量 ----
+langchain-deepseek==1.0.1        # 主对话模型
+langchain-openai==1.1.11         # 走 OpenAI 兼容协议调 SiliconFlow 的 bge-m3 做 embedding
+langchain-text-splitters==1.1.1
+# 注意：langchain-chroma 没有 0.3.x —— 版本号从 0.2.6 直接跳到 1.0.0，写 0.3.3 会解析失败
+langchain-chroma==1.1.0
+chromadb==1.5.9                  # 本地持久化向量库，零额外运维
+
+# ---- 工具调用 Java 内部接口 ----
+httpx==0.28.1
+
+# ---- 测试 ----
+# 刻意不引 pytest-asyncio：异步用例统一用 asyncio.run() 包一层（见 tests/conftest.py）
+pytest==9.0.3
